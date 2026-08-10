@@ -28,22 +28,24 @@ jobs:
           mvn -version
 
       - name: Run Maven tests
+        id: tests
+        continue-on-error: true
         working-directory: backend
         run: mvn clean test
 
       - name: Show Surefire reports
-        if: failure()
+        if: steps.tests.outcome == 'failure'
         working-directory: backend
         run: |
           echo "========================================"
-          echo "Surefire report files"
+          echo "SUREFIRE REPORT FILES"
           echo "========================================"
 
           find target/surefire-reports -type f -maxdepth 1 -print || true
 
           echo ""
           echo "========================================"
-          echo "Test failure details"
+          echo "SUREFIRE TEST REPORT"
           echo "========================================"
 
           for file in target/surefire-reports/*.txt; do
@@ -55,6 +57,12 @@ jobs:
               cat "$file"
             fi
           done
+
+      - name: Fail if tests failed
+        if: steps.tests.outcome == 'failure'
+        run: |
+          echo "Tests failed. See the Surefire report above."
+          exit 1
 
       - name: Build application
         working-directory: backend
@@ -71,4 +79,3 @@ jobs:
             k8s/mysql-service.yaml
             k8s/app-deployment.yaml
             k8s/app-service.yaml
-
