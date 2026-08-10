@@ -1,3 +1,4 @@
+```yaml
 name: Student Management Validation
 
 on:
@@ -13,16 +14,47 @@ jobs:
       - name: Checkout source code
         uses: actions/checkout@v4
 
-      - name: Set up Java
+      - name: Set up Java 21
         uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: "21"
           cache: maven
 
+      - name: Verify Java version
+        run: |
+          java -version
+          javac -version
+          mvn -version
+
       - name: Run Maven tests
         working-directory: backend
         run: mvn clean test
+
+      - name: Show Surefire reports
+        if: failure()
+        working-directory: backend
+        run: |
+          echo "========================================"
+          echo "Surefire report files"
+          echo "========================================"
+
+          find target/surefire-reports -type f -maxdepth 1 -print || true
+
+          echo ""
+          echo "========================================"
+          echo "Test failure details"
+          echo "========================================"
+
+          for file in target/surefire-reports/*.txt; do
+            if [ -f "$file" ]; then
+              echo ""
+              echo "========================================"
+              echo "FILE: $file"
+              echo "========================================"
+              cat "$file"
+            fi
+          done
 
       - name: Build application
         working-directory: backend
@@ -39,3 +71,4 @@ jobs:
             k8s/mysql-service.yaml
             k8s/app-deployment.yaml
             k8s/app-service.yaml
+```
