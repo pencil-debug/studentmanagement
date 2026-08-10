@@ -5,16 +5,15 @@ pipeline {
 
     tools {
         jdk 'JDK21'
-        maven 'Maven-3.9.16'
     }
 
     environment {
         MYSQL_CONTAINER = 'student-management-mysql'
-        MYSQL_DATABASE = 'studentdb'
-        MYSQL_USER = 'student'
-        MYSQL_PASSWORD = 'studentpassword'
-        MYSQL_ROOT_PASSWORD = 'rootpassword'
-        MYSQL_PORT = '3306'
+        MYSQL_NETWORK   = 'student-management-network'
+
+        MYSQL_DATABASE  = 'studentdb'
+        MYSQL_USER      = 'root'
+        MYSQL_PASSWORD  = 'root'
     }
 
     stages {
@@ -25,25 +24,39 @@ pipeline {
             }
         }
 
-        stage('Verify Tools') {
+        stage('Verify Java and Maven') {
             steps {
                 sh '''
                     echo "========================================"
-                    echo "JAVA"
+                    echo "JAVA VERSION"
                     echo "========================================"
                     java -version
 
-                    echo ""
                     echo "========================================"
-                    echo "MAVEN"
+                    echo "MAVEN VERSION"
                     echo "========================================"
                     mvn -version
 
-                    echo ""
                     echo "========================================"
-                    echo "DOCKER"
+                    echo "DOCKER VERSION"
                     echo "========================================"
                     docker --version
+                '''
+            }
+        }
+
+        stage('Create Docker Network') {
+            steps {
+                sh '''
+                    echo "========================================"
+                    echo "CREATING DOCKER NETWORK"
+                    echo "========================================"
+
+                    docker network inspect ${MYSQL_NETWORK} >/dev/null 2>&1 || \
+                    docker network create ${MYSQL_NETWORK}
+
+                    echo "Docker network is ready:"
+                    docker network inspect ${MYSQL_NETWORK}
                 '''
             }
         }
@@ -57,131 +70,108 @@ pipeline {
 
                     docker rm -f ${MYSQL_CONTAINER} 2>/dev/null || true
 
-                    docker run -d --name ${MYSQL_CONTAINER} -e MYSQL_ROOT_PASSWORD=${MYSQL_ROOT_PASSWORD} -e MYSQL_DATABASE=${MYSQL_DATABASE} -e MYSQL_USER=${MYSQL_USER} -e MYSQL_PASSWORD=${MYSQL_PASSWORD} -p ${MYSQL_PORT}:3306 mysql:8.0
+                    docker run -d \
+                        --name ${MYSQL_CONTAINER} \
+                        --network ${MYSQL_NETWORK} \
+                        -e MYSQL_ROOT_PASSWORD=${MYSQL_PASSWORD} \
+                        -e MYSQL_DATABASE=${MYSQL_DATABASE} \
+                        mysql:8.0
 
                     echo "MySQL container started."
-                    echo "Waiting for MySQL..."
+
+                    echo "========================================"
+                    echo "WAITING FOR MYSQL"
+                    echo "========================================"
 
                     MYSQL_READY=false
 
-                    for i in $(seq 1 30); do
-                        if docker exec ${MYSQL_CONTAINER} mysql -u${MYSQL_USER} -p${MYSQL_PASSWORD} ${MYSQL_DATABASE} -e "SELECT 1;" >/dev/null 2>&1; then
+                    for i in $(seq 1 60); do
+
+                        if docker exec ${MYSQL_CONTAINER} \
+                            mysqladmin ping \
+                            -h 127.0.0.1 \
+                            -uroot \
+                            -p${MYSQL_PASSWORD} \
+                            --silent; then
+
+                            echo "MySQL is READY!"
                             MYSQL_READY=true
-                            echo "MySQL is ready and authentication works!"
                             break
                         fi
 
-                        echo "Attempt $i/30: MySQL is not ready yet..."
+                        echo "MySQL not ready yet... attempt ${i}/60"
                         sleep 2
                     done
 
                     if [ "$MYSQL_READY" != "true" ]; then
+                        echo "ERROR: MySQL did not become ready."
+
                         echo "========================================"
-                        echo "MYSQL FAILED TO START"
+                        echo "MYSQL LOGS"
                         echo "========================================"
 
-                        docker ps -a --filter name=${MYSQL_CONTAINER}
-
-                        echo ""
-                        echo "MYSQL LOGS:"
                         docker logs ${MYSQL_CONTAINER}
 
                         exit 1
                     fi
 
-                    echo ""
                     echo "========================================"
-                    echo "MYSQL DATABASE"
+                    echo "TESTING MYSQL DATABASE"
                     echo "========================================"
 
-                    docker exec ${MYSQL_CONTAINER} mysql -u${MYSQL_USER} -p${MYSQL_PASSWORD} ${MYSQL_DATABASE} -e "SHOW DATABASES;"
+                    docker exec ${MYSQL_CONTAINER} \
+                        mysql \
+                        -h 127.0.0.1 \
+                        -uroot \
+                        -p${MYSQL_PASSWORD} \
+                        -e "SELECT VERSION();"
+
+                    docker exec ${MYSQL_CONTAINER} \
+                        mysql \
+                        -h 127.0.0.1 \
+                        -uroot \
+                        -p${MYSQL_PASSWORD} \
+                        -e "SHOW DATABASES;"
+
+                    echo "MySQL database is working."
                 '''
             }
         }
 
-     
-stage('Test') {
-    steps {
-        dir('backend') {
-            sh '''
-                echo "========================================"
-                echo "MYSQL CONNECTION TEST"
-                echo "========================================"
-
-                docker exec ${MYSQL_CONTAINER} mysql -u${MYSQL_USER} -p${MYSQL_PASSWORD} ${MYSQL_DATABASE} -e "SELECT 1;"
-
-                echo ""
-                echo "MySQL connection successful!"
-
-                echo ""
-                echo "========================================"
-                echo "MYSQL DATABASE INFORMATION"
-                echo "========================================"
-
-                docker exec ${MYSQL_CONTAINER} mysql -u${MYSQL_USER} -p${MYSQL_PASSWORD} ${MYSQL_DATABASE} -e "SELECT DATABASE();"
-
-                echo ""
-                echo "========================================"
-                echo "RUNNING MAVEN TESTS"
-                echo "========================================"
-
-                mvn clean test
-            '''
-        }
-    }
-
-    post {
-        always {
-            dir('backend') {
-                sh '''
-                    echo ""
-                    echo "========================================"
-                    echo "SUREFIRE REPORTS"
-                    echo "========================================"
-
-                    if [ -d target/surefire-reports ]; then
-                        find target/surefire-reports -type f -print
-
-                        echo ""
+        stage('Test') {
+            steps {
+                dir('backend') {
+                    sh '''
                         echo "========================================"
-                        echo "TEST DETAILS"
+                        echo "RUNNING SPRING BOOT TESTS"
                         echo "========================================"
 
-                        for file in target/surefire-reports/*.txt; do
-                            if [ -f "$file" ]; then
-                                echo ""
-                                echo "========================================"
-                                echo "FILE: $file"
-                                echo "========================================"
-                                cat "$file"
-                            fi
-                        done
-                    else
-                        echo "No Surefire reports found."
-                    fi
-                '''
+                        mvn clean test \
+                            -Dspring.datasource.url="jdbc:mysql://${MYSQL_CONTAINER}:3306/${MYSQL_DATABASE}?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC" \
+                            -Dspring.datasource.username="${MYSQL_USER}" \
+                            -Dspring.datasource.password="${MYSQL_PASSWORD}" \
+                            -Dspring.datasource.driver-class-name="com.mysql.cj.jdbc.Driver" \
+                            -Dspring.jpa.hibernate.ddl-auto=update
+
+                        echo "========================================"
+                        echo "TESTS PASSED"
+                        echo "========================================"
+                    '''
+                }
             }
         }
-    }
-}
-
 
         stage('Build') {
             steps {
                 dir('backend') {
                     sh '''
                         echo "========================================"
-                        echo "BUILDING APPLICATION"
+                        echo "BUILDING SPRING BOOT APPLICATION"
                         echo "========================================"
 
                         mvn clean package -DskipTests
 
-                        echo ""
-                        echo "========================================"
-                        echo "BUILD OUTPUT"
-                        echo "========================================"
-
-                        ls -lh target/
+                        echo "BUILD SUCCESSFUL"
                     '''
                 }
             }
@@ -195,14 +185,11 @@ stage('Test') {
                         echo "BUILDING DOCKER IMAGE"
                         echo "========================================"
 
-                        docker build -t student-management:latest .
+                        docker build \
+                            -t student-management:latest \
+                            .
 
-                        echo ""
-                        echo "========================================"
-                        echo "DOCKER IMAGE"
-                        echo "========================================"
-
-                        docker images student-management
+                        echo "DOCKER IMAGE BUILT"
                     '''
                 }
             }
@@ -214,27 +201,38 @@ stage('Test') {
         always {
             sh '''
                 echo "========================================"
-                echo "CLEANING MYSQL"
+                echo "SUREFIRE REPORTS"
+                echo "========================================"
+
+                if [ -d backend/target/surefire-reports ]; then
+                    find backend/target/surefire-reports \
+                        -type f \
+                        -print
+                else
+                    echo "No Surefire reports found."
+                fi
+
+                echo "========================================"
+                echo "MYSQL CLEANUP"
                 echo "========================================"
 
                 docker rm -f ${MYSQL_CONTAINER} 2>/dev/null || true
 
-                echo "MySQL container cleanup completed."
+                echo "MySQL container removed."
             '''
         }
 
         success {
-            echo "========================================"
-            echo "PIPELINE SUCCESS"
-            echo "========================================"
-            echo "Student Management pipeline completed successfully!"
+            echo '========================================'
+            echo 'PIPELINE SUCCESS'
+            echo '========================================'
         }
 
         failure {
-            echo "========================================"
-            echo "PIPELINE FAILED"
-            echo "========================================"
-            echo "Check the failed stage above."
+            echo '========================================'
+            echo 'PIPELINE FAILED'
+            echo '========================================'
+            echo 'Check the failed stage and logs above.'
         }
     }
 }
