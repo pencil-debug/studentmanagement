@@ -12,7 +12,10 @@ pipeline {
         NAMESPACE = "student-management"
 
     }
-    tools { jdk 'JDK21' maven 'Maven3' }
+    tools { 
+        jdk 'JDK21' 
+        maven 'Maven-3.9.16' 
+    }
 
     stages {
 
