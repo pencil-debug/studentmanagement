@@ -1,4 +1,4 @@
-```yaml
+
 name: Student Management Validation
 
 on:
@@ -71,4 +71,4 @@ jobs:
             k8s/mysql-service.yaml
             k8s/app-deployment.yaml
             k8s/app-service.yaml
-```
+
