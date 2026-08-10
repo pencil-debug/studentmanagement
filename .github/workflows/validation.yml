@@ -1,0 +1,41 @@
+name: Student Management Validation
+
+on:
+  push:
+
+  pull_request:
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout source code
+        uses: actions/checkout@v4
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+          cache: maven
+
+      - name: Run Maven tests
+        working-directory: backend
+        run: mvn clean test
+
+      - name: Build application
+        working-directory: backend
+        run: mvn clean package -DskipTests
+
+      - name: Validate Kubernetes manifests
+        uses: azure/k8s-lint@v1
+        with:
+          manifests: |
+            k8s/namespace.yaml
+            k8s/secret.yaml
+            k8s/mysql-pvc.yaml
+            k8s/mysql-deployment.yaml
+            k8s/mysql-service.yaml
+            k8s/app-deployment.yaml
+            k8s/app-service.yaml

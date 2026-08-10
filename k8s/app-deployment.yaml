@@ -1,0 +1,77 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: student-management-app
+  namespace: student-management
+
+spec:
+
+  replicas: 2
+
+  selector:
+    matchLabels:
+      app: student-management
+
+  template:
+
+    metadata:
+      labels:
+        app: student-management
+
+    spec:
+
+      containers:
+
+        - name: student-management
+
+          image: YOUR_DOCKERHUB_USERNAME/student-management:latest
+
+          imagePullPolicy: Always
+
+          ports:
+            - containerPort: 8080
+
+          env:
+
+            - name: DB_URL
+              value: jdbc:mysql://mysql-service:3306/studentdb?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC
+
+            - name: DB_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: mysql-secret
+                  key: MYSQL_USER
+
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: mysql-secret
+                  key: MYSQL_PASSWORD
+
+          readinessProbe:
+
+            httpGet:
+              path: /
+              port: 8080
+
+            initialDelaySeconds: 30
+            periodSeconds: 10
+
+          livenessProbe:
+
+            httpGet:
+              path: /
+              port: 8080
+
+            initialDelaySeconds: 45
+            periodSeconds: 20
+
+          resources:
+
+            requests:
+              cpu: "100m"
+              memory: "256Mi"
+
+            limits:
+              cpu: "500m"
+              memory: "512Mi"

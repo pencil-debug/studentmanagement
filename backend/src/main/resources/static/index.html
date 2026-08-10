@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <title>Student Management System</title>
+
+    <link rel="stylesheet" href="style.css">
+</head>
+
+<body>
+
+<div class="container">
+
+    <header>
+        <h1>Student Management System</h1>
+        <p>Java Spring Boot + MySQL + Kubernetes</p>
+    </header>
+
+    <section class="form-section">
+
+        <h2>Add Student</h2>
+
+        <form id="studentForm">
+
+            <input
+                type="text"
+                id="name"
+                placeholder="Student Name"
+                required
+            >
+
+            <input
+                type="email"
+                id="email"
+                placeholder="Email"
+                required
+            >
+
+            <input
+                type="text"
+                id="course"
+                placeholder="Course"
+                required
+            >
+
+            <button type="submit">
+                Add Student
+            </button>
+
+        </form>
+
+    </section>
+
+    <section class="students-section">
+
+        <h2>Students</h2>
+
+        <button
+            class="refresh"
+            onclick="loadStudents()">
+            Refresh
+        </button>
+
+        <table>
+
+            <thead>
+                <tr>
+                    <th>ID</th>
+                    <th>Name</th>
+                    <th>Email</th>
+                    <th>Course</th>
+                    <th>Action</th>
+                </tr>
+            </thead>
+
+            <tbody id="studentTableBody">
+            </tbody>
+
+        </table>
+
+    </section>
+
+</div>
+
+<script src="script.js"></script>
+
+</body>
+
+</html>
