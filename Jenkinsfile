@@ -147,43 +147,16 @@ pipeline {
          * TEST SPRING BOOT APPLICATION
          * ==========================================
          */
-        stage('Test') {
-            steps {
-                dir('backend') {
-                    sh '''
-                        echo "========================================"
-                        echo "TESTING MYSQL CONNECTION"
-                        echo "========================================"
-
-                        docker exec ${MYSQL_CONTAINER} \
-                            mysql \
-                            -u${MYSQL_USER} \
-                            -p${MYSQL_PASSWORD} \
-                            -e "SELECT 1;" \
-                            ${MYSQL_DATABASE}
-
-                        echo ""
-                        echo "MySQL connection successful!"
-
-                        echo ""
-                        echo "========================================"
-                        echo "RUNNING MAVEN TESTS"
-                        echo "========================================"
-
-                        mvn clean test \
-                          -Dspring.datasource.url=jdbc:mysql://127.0.0.1:3306/${MYSQL_DATABASE} \
-                          -Dspring.datasource.username=${MYSQL_USER} \
-                          -Dspring.datasource.password=${MYSQL_PASSWORD}
-                    '''
-                }
-            }
-        }
-
-        /*
-         * ==========================================
-         * BUILD SPRING BOOT JAR
-         * ==========================================
-         */
+        stage('Test') { 
+            steps { 
+                dir('backend') 
+                { sh ''' echo "========================================" 
+                echo "MYSQL CONNECTION TEST" 
+                echo "========================================" 
+                docker exec ${MYSQL_CONTAINER} \ mysql \ -u${MYSQL_USER} \ -p${MYSQL_PASSWORD} \ -e "SELECT 1;" \ ${MYSQL_DATABASE} echo ""
+                 echo "MySQL connection successful!" 
+                 echo "" 
+                 echo "========================================" echo "RUNNING MAVEN TESTS" echo "========================================" mvn clean test \ -Dspring.datasource.url=jdbc:mysql://127.0.0.1:3306/${MYSQL_DATABASE} \ -Dspring.datasource.username=${MYSQL_USER} \ -Dspring.datasource.password=${MYSQL_PASSWORD} ''' } } post { always { dir('backend') { sh ''' echo "" echo "========================================" echo "SUREFIRE TEST REPORTS" echo "========================================" if [ -d target/surefire-reports ]; then find target/surefire-reports -type f -print echo "" echo "========================================" echo "TEST DETAILS" echo "========================================" for file in target/surefire-reports/*.txt; do if [ -f "$file" ]; then echo "" echo "========================================" echo "FILE: $file" echo "========================================" cat "$file" fi done else echo "No Surefire reports found." fi ''' } } } }
         stage('Build') {
             steps {
                 dir('backend') {
