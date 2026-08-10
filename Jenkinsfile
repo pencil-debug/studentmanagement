@@ -99,65 +99,72 @@ pipeline {
             }
         }
 
-        stage('Test') {
-            steps {
-                dir('backend') {
-                    sh '''
-                        echo "========================================"
-                        echo "TESTING MYSQL CONNECTION"
-                        echo "========================================"
+     
+stage('Test') {
+    steps {
+        dir('backend') {
+            sh '''
+                echo "========================================"
+                echo "MYSQL CONNECTION TEST"
+                echo "========================================"
 
-                        docker exec ${MYSQL_CONTAINER} mysql -u${MYSQL_USER} -p${MYSQL_PASSWORD} ${MYSQL_DATABASE} -e "SELECT 1;"
+                docker exec ${MYSQL_CONTAINER} mysql -u${MYSQL_USER} -p${MYSQL_PASSWORD} ${MYSQL_DATABASE} -e "SELECT 1;"
+
+                echo ""
+                echo "MySQL connection successful!"
+
+                echo ""
+                echo "========================================"
+                echo "MYSQL DATABASE INFORMATION"
+                echo "========================================"
+
+                docker exec ${MYSQL_CONTAINER} mysql -u${MYSQL_USER} -p${MYSQL_PASSWORD} ${MYSQL_DATABASE} -e "SELECT DATABASE();"
+
+                echo ""
+                echo "========================================"
+                echo "RUNNING MAVEN TESTS"
+                echo "========================================"
+
+                mvn clean test
+            '''
+        }
+    }
+
+    post {
+        always {
+            dir('backend') {
+                sh '''
+                    echo ""
+                    echo "========================================"
+                    echo "SUREFIRE REPORTS"
+                    echo "========================================"
+
+                    if [ -d target/surefire-reports ]; then
+                        find target/surefire-reports -type f -print
 
                         echo ""
-                        echo "MySQL connection successful!"
-
-                        echo ""
                         echo "========================================"
-                        echo "RUNNING MAVEN TESTS"
+                        echo "TEST DETAILS"
                         echo "========================================"
 
-                        mvn clean test -Dspring.datasource.url=jdbc:mysql://127.0.0.1:3306/${MYSQL_DATABASE} -Dspring.datasource.username=${MYSQL_USER} -Dspring.datasource.password=${MYSQL_PASSWORD}
-                    '''
-                }
-            }
-
-            post {
-                always {
-                    dir('backend') {
-                        sh '''
-                            echo ""
-                            echo "========================================"
-                            echo "SUREFIRE REPORTS"
-                            echo "========================================"
-
-                            if [ -d target/surefire-reports ]; then
-
-                                find target/surefire-reports -type f -print
-
+                        for file in target/surefire-reports/*.txt; do
+                            if [ -f "$file" ]; then
                                 echo ""
                                 echo "========================================"
-                                echo "TEST DETAILS"
+                                echo "FILE: $file"
                                 echo "========================================"
-
-                                for file in target/surefire-reports/*.txt; do
-                                    if [ -f "$file" ]; then
-                                        echo ""
-                                        echo "========================================"
-                                        echo "FILE: $file"
-                                        echo "========================================"
-                                        cat "$file"
-                                    fi
-                                done
-
-                            else
-                                echo "No Surefire reports found."
+                                cat "$file"
                             fi
-                        '''
-                    }
-                }
+                        done
+                    else
+                        echo "No Surefire reports found."
+                    fi
+                '''
             }
         }
+    }
+}
+
 
         stage('Build') {
             steps {
