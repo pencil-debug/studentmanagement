@@ -1,4 +1,4 @@
-
+```yaml
 name: Student Management Validation
 
 on:
@@ -9,6 +9,20 @@ on:
 jobs:
   validate:
     runs-on: ubuntu-latest
+
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: root
+          MYSQL_DATABASE: studentdb
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -uroot -proot"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=10
 
     steps:
       - name: Checkout source code
@@ -31,6 +45,10 @@ jobs:
         id: tests
         continue-on-error: true
         working-directory: backend
+        env:
+          SPRING_DATASOURCE_URL: jdbc:mysql://localhost:3306/studentdb
+          SPRING_DATASOURCE_USERNAME: root
+          SPRING_DATASOURCE_PASSWORD: root
         run: mvn clean test
 
       - name: Show Surefire reports
@@ -41,11 +59,11 @@ jobs:
           echo "SUREFIRE REPORT FILES"
           echo "========================================"
 
-          find target/surefire-reports -type f -maxdepth 1 -print || true
+          find target/surefire-reports -type f -print || true
 
           echo ""
           echo "========================================"
-          echo "SUREFIRE TEST REPORT"
+          echo "TEST FAILURE DETAILS"
           echo "========================================"
 
           for file in target/surefire-reports/*.txt; do
@@ -61,11 +79,15 @@ jobs:
       - name: Fail if tests failed
         if: steps.tests.outcome == 'failure'
         run: |
-          echo "Tests failed. See the Surefire report above."
+          echo "Tests failed."
           exit 1
 
       - name: Build application
         working-directory: backend
+        env:
+          SPRING_DATASOURCE_URL: jdbc:mysql://localhost:3306/studentdb
+          SPRING_DATASOURCE_USERNAME: root
+          SPRING_DATASOURCE_PASSWORD: root
         run: mvn clean package -DskipTests
 
       - name: Validate Kubernetes manifests
@@ -79,3 +101,4 @@ jobs:
             k8s/mysql-service.yaml
             k8s/app-deployment.yaml
             k8s/app-service.yaml
+```
